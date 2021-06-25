@@ -21,8 +21,10 @@ class MetaData{
     //void* _data_block;
     MetaData* _next;
     MetaData* _prev;
+    MetaData* _next_free;
+    MetaData* _prev_free;
     public:
-    MetaData(size_t size ,bool is_free, MetaData* last_metadata):_size(size),_is_free(is_free),_prev(last_metadata),_next(nullptr){
+    MetaData(size_t size ,bool is_free, MetaData* last_metadata):_size(size),_is_free(is_free),_prev(last_metadata),_next(nullptr),_prev_free(nullptr),_next_free(nullptr){
     }
     size_t getSize(){
         return _size;
@@ -45,6 +47,18 @@ class MetaData{
     void setPrev(MetaData* prev){
         _prev=prev;
     }
+    MetaData* getNextFree(){
+        return _next_free;
+    }
+    void setNextFree(MetaData* nextFree){
+        _next_free=nextFree;
+    }
+    MetaData* getPrevFree(){
+        return _prev_free;
+    }
+    void setPrevFree(MetaData* prev_free){
+        _prev_free=prev_free;
+    }
 
 
 };
@@ -56,6 +70,7 @@ void stats_allocate_block(size_t num_bytes){
 
 MetaData *heap_bottom=nullptr;
 statistics stats = stats_default;
+MetaData *histogram[128];
 
 //increses the heap size by size (allocates a block). returns the address of the new allocated block
 void* sbrk_wrap(size_t size){
@@ -80,6 +95,9 @@ void* smalloc(size_t size){
         heap_bottom=(MetaData*)sbrk_res;
         *heap_bottom = MetaData(size,0,NULL);
         stats_allocate_block(size);
+        for (int i=0;i<128;i++){// initilize free block histogram list
+            *histogram[i]=MetaData(0,1,nullptr);
+        }
         return heap_bottom+sizeof(MetaData);
     }
     MetaData* itt= heap_bottom;
@@ -123,6 +141,10 @@ void sfree(void* p){
     stats._num_free_blocks++;
     stats._num_free_bytes+=meta->getSize();
     meta->setFree(true);
+
+    //update free list
+    insertFreeBlock(meta);
+
     
     
     
