@@ -134,7 +134,7 @@ void* scalloc(size_t num, size_t size){
     return smalloc_res;
 }
 void insertFreeBlock(MetaData* meta){
-    if 
+   // if 
 }
 void sfree(void* p){
     if(p == NULL){

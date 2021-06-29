@@ -1,6 +1,7 @@
 //ofir and einav wohoo
-#include "malloc_1.cpp"
+#include "malloc_1.h"
 #include <iostream>
+#include <unistd.h>
 
 int main(){
     void* p1 = smalloc(0);

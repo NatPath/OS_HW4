@@ -1,7 +1,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <cstring>
-
+#include "malloc_2.h"
 
  struct statistics{
 
@@ -60,20 +60,20 @@ void stats_allocate_block(size_t num_bytes){
 //increses the heap size by size (allocates a block). returns the address of the new allocated block
 #define HUNDRED_MIL 100000000
 void* sbrk_wrap(size_t size){
-    if(size == 0 || size > HUNDRED_MIL){
+    if(size == sizeof(MetaData) || size > HUNDRED_MIL + sizeof(MetaData)){
         return NULL;
     }
     void* res=sbrk(size);
     if(res == (void*)(-1)){
         return NULL;
     }
-    res=res+1;
+    res=(void*)((char*)res+1);
     return res;
 }
 
 void* smalloc(size_t size){
     void* sbrk_res;
-    if (heap_bottom){
+    if (!heap_bottom){
         sbrk_res= sbrk_wrap(sizeof(MetaData)+size);
         if (sbrk_res==NULL){
             return NULL;
@@ -102,6 +102,7 @@ void* smalloc(size_t size){
                 stats_allocate_block(size);
                 return itt->getNext()+sizeof(MetaData);
             }
+            itt = itt->getNext();
         }
     }
 }
@@ -120,7 +121,7 @@ void sfree(void* p){
         return;
     }
 
-    MetaData* meta =(MetaData*)(p-sizeof(MetaData));
+    MetaData* meta =(MetaData*)((char*)p-sizeof(MetaData));
     stats._num_free_blocks++;
     stats._num_free_bytes+=meta->getSize();
     meta->setFree(true);
@@ -129,7 +130,7 @@ void sfree(void* p){
     
 }
 void* srealloc(void* oldp, size_t size){
-    MetaData* meta =(MetaData*)(oldp-sizeof(MetaData));
+    MetaData* meta =(MetaData*)((char*)oldp-sizeof(MetaData));
     if (meta->getSize()> size){
         return oldp;       
     }

@@ -1,6 +1,6 @@
 //ofir and einav wohoo
 #include <iostream>
-#include "malloc_2.cpp"
+#include "malloc_2.h"
 #include <cmath>
 #define NUM_OF_ARRAYS 11
 /*
@@ -28,11 +28,17 @@ debug funcs:
 
 bool debugSuccess(size_t numFree, size_t numAlloc, size_t numFreeBytes, size_t numAllocBytes){
     bool flag= true;
-    flag = flag && _num_free_blocks() == numFree;
-    flag = flag && _num_allocated_blocks() == numAlloc;
-    flag = flag && _num_allocated_bytes() == numAllocBytes;
-    flag = flag && _num_free_bytes() == numFreeBytes;
-    flag = flag && _num_meta_data_bytes() == numAlloc * _size_meta_data();
+    size_t allocated_blocks = _num_allocated_blocks();
+    size_t free_blocks = _num_free_blocks();
+    size_t allocated_bytes = _num_allocated_bytes();
+    size_t  free_bytes = _num_free_bytes();
+    size_t metadata_bytes = _num_meta_data_bytes();
+
+    flag = flag &&  free_blocks == numFree;
+    flag = flag &&  allocated_blocks == numAlloc;
+    flag = flag &&  allocated_bytes == numAllocBytes;
+    flag = flag &&  free_bytes == numFreeBytes;
+    flag = flag &&  metadata_bytes == numAlloc * _size_meta_data();
     return flag;
 }
 
@@ -58,13 +64,13 @@ int main(){
 
     passed_loc = all_arrays[0] == NULL && all_arrays[NUM_OF_ARRAYS - 1] == NULL;
     if(!passed_loc){
-        std::cout << "\nerror smalloc parameters \n" << std::endl;
+        std::cout << "\nerror smalloc parameters1 \n" << std::endl;
     }
     passed_tot = passed_tot && passed_loc;
 
     passed_loc = debugSuccess(0, NUM_OF_ARRAYS - 2, 0, totalsize);
     if(!passed_loc){
-        std::cout << "\nerror smalloc parameters \n" << std::endl;
+        std::cout << "\nerror smalloc parameters2 \n" << std::endl;
     };
     passed_tot = passed_tot && passed_loc;
 
