@@ -73,8 +73,9 @@ statistics stats = stats_default;
 MetaData *histogram[128];
 
 //increses the heap size by size (allocates a block). returns the address of the new allocated block
+#define HUNDRED_MIL 100000000
 void* sbrk_wrap(size_t size){
-    if(size == 0 || size > 10^8){
+    if(size == 0 || size > HUNDRED_MIL){
         return NULL;
     }
     void* res=sbrk(size);
@@ -131,6 +132,9 @@ void* scalloc(size_t num, size_t size){
 
     std::memset(smalloc_res,0,size*num);
     return smalloc_res;
+}
+void insertFreeBlock(MetaData* meta){
+    if 
 }
 void sfree(void* p){
     if(p == NULL){

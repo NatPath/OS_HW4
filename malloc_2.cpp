@@ -49,17 +49,18 @@ class MetaData{
 
 };
 
+MetaData *heap_bottom=nullptr;
+statistics stats = stats_default;
 void stats_allocate_block(size_t num_bytes){
      stats._num_allocated_blocks++;
      stats._num_allocated_bytes+=num_bytes;
 }
 
-MetaData *heap_bottom=nullptr;
-statistics stats = stats_default;
 
 //increses the heap size by size (allocates a block). returns the address of the new allocated block
+#define HUNDRED_MIL 100000000
 void* sbrk_wrap(size_t size){
-    if(size == 0 || size > 10^8){
+    if(size == 0 || size > HUNDRED_MIL){
         return NULL;
     }
     void* res=sbrk(size);
