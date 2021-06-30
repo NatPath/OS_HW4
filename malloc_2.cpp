@@ -129,21 +129,23 @@ void* scalloc(size_t num, size_t size){
     return smalloc_res;
 }
 void sfree(void* p){
-    if(p == NULL){
+    if(p == NULL ){
         return;
     }
-
     MetaData* meta =(MetaData*)((char*)p-sizeof(MetaData));
+    if (meta->isFree()){
+        return;
+    }
     stats_free_block(meta->getSize());
     meta->setFree(true);
 }
 void* srealloc(void* oldp, size_t size){
-    MetaData* meta =(MetaData*)((char*)oldp-sizeof(MetaData));
-    if (meta->getSize()> size){
-        return oldp;       
-    }
     if (oldp==NULL){
         return smalloc(size);
+    }
+    MetaData* meta =(MetaData*)((char*)oldp-sizeof(MetaData));
+    if (meta->getSize()>= size && size > 0){
+        return oldp;       
     }
     else{
         void* smalloc_res=smalloc(size);

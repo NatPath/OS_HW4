@@ -447,5 +447,6 @@ int main()
     callTestFunction(test_realloc);
     std::cout << "test_failures" << std::endl;
     callTestFunction(test_failures);
+    //test_realloc();
     return 0;
 }
