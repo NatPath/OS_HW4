@@ -1,8 +1,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <cstring>
+#include <iostream>
 #include "malloc_2.h"
 
+// UNCOMMENT THIS BEFORE SUBMITION - BECAUSE WE DONT SUBMIT malloc_2.h
  struct statistics{
 
     size_t _num_free_blocks;
@@ -13,16 +15,18 @@
 } stats_default{0,0,0,0};
 
 typedef struct statistics* Stats;
+Stats stats = &stats_default;
 
 
+/*
 class MetaData{
     size_t  _size;
     bool _is_free;
-    //void* _data_block;
+    void* _data_block;
     MetaData* _next;
     MetaData* _prev;
     public:
-    MetaData(size_t size ,bool is_free, MetaData* last_metadata):_size(size),_is_free(is_free),_prev(last_metadata),_next(nullptr){
+    MetaData(size_t size ,bool is_free,void* data_block, MetaData* last_metadata):_size(size),_is_free(is_free),_data_block(data_block),_prev(last_metadata),_next(nullptr){
     }
     size_t getSize(){
         return _size;
@@ -45,15 +49,24 @@ class MetaData{
     void setPrev(MetaData* prev){
         _prev=prev;
     }
-
-
 };
+*/
 
 MetaData *heap_bottom=nullptr;
-statistics stats = stats_default;
+
 void stats_allocate_block(size_t num_bytes){
-     stats._num_allocated_blocks++;
-     stats._num_allocated_bytes+=num_bytes;
+     stats->_num_allocated_blocks++;
+     stats->_num_allocated_bytes+=num_bytes;
+}
+
+void stats_free_block(size_t num_bytes){
+    stats->_num_free_blocks++;
+    stats->_num_free_bytes+=num_bytes;
+}
+
+void stats_unfree_block(size_t num_bytes){
+    stats->_num_free_blocks--;
+    stats->_num_free_bytes-=num_bytes;
 }
 
 
@@ -67,7 +80,7 @@ void* sbrk_wrap(size_t size){
     if(res == (void*)(-1)){
         return NULL;
     }
-    res=(void*)((char*)res+1);
+    //res=(void*)((char*)res+1);
     return res;
 }
 
@@ -79,17 +92,16 @@ void* smalloc(size_t size){
             return NULL;
         }
         heap_bottom=(MetaData*)sbrk_res;
-        *heap_bottom = MetaData(size,0,NULL);
+        *heap_bottom = MetaData(size,0,(void*)((char*)sbrk_res+sizeof(MetaData)),NULL);
         stats_allocate_block(size);
-        return heap_bottom+sizeof(MetaData);
+        return heap_bottom+1;
     }
     MetaData* itt= heap_bottom;
     while (itt){
         if (itt->isFree()&& itt->getSize()>=size){
             itt->setFree(0);
-            stats._num_free_blocks--;
-            stats._num_free_bytes-=size;
-            return itt+sizeof(MetaData);
+            stats_unfree_block(size);
+            return itt+1;
         }        
         else{
             if (itt->getNext()==NULL){// checked the last block, need to allocate a new one
@@ -98,9 +110,9 @@ void* smalloc(size_t size){
                     return NULL;
                 }
                 itt->setNext((MetaData*)sbrk_res);
-                *(itt->getNext()) = MetaData(size,0,itt);
+                *(itt->getNext()) = MetaData(size,0,(void*)((char*)sbrk_res+sizeof(MetaData)),itt);
                 stats_allocate_block(size);
-                return itt->getNext()+sizeof(MetaData);
+                return itt->getNext()+1;
             }
             itt = itt->getNext();
         }
@@ -122,8 +134,7 @@ void sfree(void* p){
     }
 
     MetaData* meta =(MetaData*)((char*)p-sizeof(MetaData));
-    stats._num_free_blocks++;
-    stats._num_free_bytes+=meta->getSize();
+    stats_free_block(meta->getSize());
     meta->setFree(true);
     
     
@@ -150,23 +161,23 @@ void* srealloc(void* oldp, size_t size){
 }
 
 size_t _num_free_blocks(){
-    return stats._num_free_blocks;
+    return stats->_num_free_blocks;
 }
 
 size_t _num_free_bytes(){
-    return stats._num_free_bytes;
+    return stats->_num_free_bytes;
 }
 
 size_t _num_allocated_blocks(){
-    return stats._num_allocated_blocks;
+    return stats->_num_allocated_blocks;
 }
 
 size_t _num_allocated_bytes(){
-    return stats._num_allocated_bytes;
+    return stats->_num_allocated_bytes;
 }
 
 size_t _num_meta_data_bytes(){
-    return stats._num_allocated_blocks * sizeof(MetaData);
+    return stats->_num_allocated_blocks * sizeof(MetaData);
 }
 
 size_t _size_meta_data(){

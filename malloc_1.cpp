@@ -11,6 +11,6 @@ void* smalloc(size_t size){
     if(res == (void*)(-1)){
         return NULL;
     }
-    res=(void*)((long)res+1);
+    //res=(void*)((char*)res+1);
     return res;
 }
