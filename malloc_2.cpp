@@ -100,7 +100,7 @@ void* smalloc(size_t size){
     while (itt){
         if (itt->isFree()&& itt->getSize()>=size){
             itt->setFree(0);
-            stats_unfree_block(size);
+            stats_unfree_block(itt->getSize());
             return itt+1;
         }        
         else{
@@ -136,9 +136,6 @@ void sfree(void* p){
     MetaData* meta =(MetaData*)((char*)p-sizeof(MetaData));
     stats_free_block(meta->getSize());
     meta->setFree(true);
-    
-    
-    
 }
 void* srealloc(void* oldp, size_t size){
     MetaData* meta =(MetaData*)((char*)oldp-sizeof(MetaData));
@@ -146,17 +143,16 @@ void* srealloc(void* oldp, size_t size){
         return oldp;       
     }
     if (oldp==NULL){
-        return (MetaData*)smalloc(size);
+        return smalloc(size);
     }
     else{
         void* smalloc_res=smalloc(size);
         if (smalloc_res==NULL){
             return NULL;
         }
-        MetaData* newp= (MetaData*)smalloc_res;
-        std::memcpy(oldp,newp,meta->getSize());
+        std::memcpy(smalloc_res,(const void*)oldp,meta->getSize());
         sfree(oldp);
-        return newp;
+        return smalloc_res;
     }        
 }
 

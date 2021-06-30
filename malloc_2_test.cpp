@@ -35,10 +35,25 @@ bool debugSuccess(size_t numFree, size_t numAlloc, size_t numFreeBytes, size_t n
     size_t metadata_bytes = _num_meta_data_bytes();
 
     flag = flag &&  free_blocks == numFree;
+    if(!flag){
+        std::cout << "free_blocks fail. Expected: "<<numFree<<" Actual: " << free_blocks <<std::endl;
+    }
     flag = flag &&  allocated_blocks == numAlloc;
+    if(!flag){
+        std::cout << "free_blocks fail. Expected: "<<numAlloc<<" Actual: " << allocated_blocks<<std::endl;
+    }
     flag = flag &&  allocated_bytes == numAllocBytes;
+    if(!flag){
+        std::cout << "allocted_bytes fail. Expected: "<<numAllocBytes<<" Actual: " << allocated_bytes<<std::endl;
+    }
     flag = flag &&  free_bytes == numFreeBytes;
+    if(!flag){
+        std::cout << "free_bytes fail. Expected: "<<numFreeBytes<<" Actual: " << free_bytes<<std::endl;
+    }
     flag = flag &&  metadata_bytes == numAlloc * _size_meta_data();
+    if(!flag){
+        std::cout << "meta_data fail. Expected: "<<numAlloc*_size_meta_data()<<" Actual: " << metadata_bytes<<std::endl;
+    }
     return flag;
 }
 
