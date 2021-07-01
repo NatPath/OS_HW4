@@ -59,7 +59,6 @@ int main() {
     assert(_num_meta_data_bytes() == 6 * META_SIZE);
 
     sfree(b3);
-    printStats();
     assert(_num_free_blocks() == 1);
     assert(_num_free_bytes() == 3000);
     assert(_num_allocated_blocks() == 6);
@@ -67,7 +66,6 @@ int main() {
     assert(_num_meta_data_bytes() == 6 * META_SIZE);
 
     b3 = smalloc(1000);
-    printStats();
     assert(_num_free_blocks() == 1);
     assert(_num_free_bytes() == 3000 - META_SIZE - 1000);
     assert(_num_allocated_blocks() == 7);

@@ -224,8 +224,10 @@ MetaData* split_block(MetaData* block_to_split,int size,int index){
     //
     insert_to_meta_histogram(block_b);
     //update stats
-    stats_unfree_block(size);
-    stats_allocate_block(0); // equivalent to stats->_num_allocated_blocks++
+    stats->_num_free_bytes-=size+sizeof(MetaData);
+    //stats_allocate_block(-sizeof(MetaData)); // equivalent to stats->_num_allocated_blocks++
+    stats->_num_allocated_bytes-=sizeof(MetaData);
+    stats->_num_allocated_blocks++;
     if(block_to_split==wilderness){
         //update wilderness
         wilderness=block_b;
@@ -275,16 +277,18 @@ MetaData* search_bin_and_split(size_t size,int index){
     */
     MetaData* res=nullptr;
     MetaData* itt= meta_histogram[index];
-    while(itt){
-        Println("entered search_bin_and_split");
-        printMetaData(itt);
+    while(itt!=nullptr){
         if(itt->getSize() >= size ){
             if (itt->getSize() >= size+HUNDERED_TWENTY_EIGHT+sizeof(MetaData)){
                 //split if splitable
                 res = split_block(itt,size,index);
             }
             else{
+                //unsplitable block
                 res = itt; 
+                res->setFree(0);
+                remove_from_free_list(res,index);
+                stats_unfree_block(itt->getSize());
             }
             break;
         }        
@@ -302,13 +306,11 @@ MetaData* search_bin_and_split(size_t size,int index){
  * */
 MetaData* search_histogram_and_split(size_t size,int index){
     MetaData* res= nullptr;
-    print_free_histogram();
+    //print_free_histogram();
     for (int i= index;i< HUNDERED_TWENTY_EIGHT;i++){
         //Println("bin of index : " << i );
-        res=search_bin_and_split(size,index);
+        res=search_bin_and_split(size,i);
         if (res){
-            Println("finished splitting alek");
-            printMetaData(res);
             break;
         }
     }
@@ -322,8 +324,9 @@ MetaData* search_histogram_and_split(size_t size,int index){
  * */
 MetaData* expand_wilderness(size_t new_wilderness_size){
     size_t old_wilderness_size= wilderness->getSize();
-    void* sbrk_res = sbrk_wrap(new_wilderness_size-old_wilderness_size);
-    if (sbrk_res==nullptr){
+    //void* sbrk_res = sbrk_wrap(new_wilderness_size-old_wilderness_size);
+    void* sbrk_res = sbrk(new_wilderness_size-old_wilderness_size);
+    if (sbrk_res==(void*)(-1)){
         //indicating an error
         return nullptr;
     }
@@ -372,6 +375,9 @@ MetaData* merge_two(MetaData* prev, MetaData* next){
 
     insert_to_meta_histogram(prev);
     stats_unfree_block(0);
+    stats->_num_allocated_blocks--;
+    stats->_num_allocated_bytes+=sizeof(MetaData);
+    stats->_num_free_bytes+=sizeof(MetaData);
 
     return prev;
 
@@ -425,6 +431,7 @@ void* smalloc(size_t size){
             }
             heap_bottom=(MetaData*)sbrk_res;
             *heap_bottom = MetaData(size,0,(void*)((char*)sbrk_res+sizeof(MetaData)),NULL,0);
+            res->setNext(nullptr);
             stats_allocate_block(size);
             wilderness= heap_bottom;
             return heap_bottom+1;
@@ -446,6 +453,7 @@ void* smalloc(size_t size){
             }
             //no fitting block or block to split
             if (wilderness->isFree()){
+                //Println("--expanded wilderness--");
                 res = expand_wilderness(size);
                 if (res!=nullptr){
                     return res+1;
@@ -459,8 +467,10 @@ void* smalloc(size_t size){
             if (sbrk_res==NULL){
                 return NULL;
             }
+            //Println("sbrk like animals");
             res = (MetaData*)sbrk_res;
             *res = MetaData(size,0,res+1,wilderness,0);
+            wilderness->setNext(res);
             wilderness=res;
             stats_allocate_block(size);
             return res+1;
@@ -506,7 +516,7 @@ void sfree(void* p){
     if (old_index<HUNDERED_TWENTY_EIGHT){
         stats_free_block(old_size);
         merge_neighbours(meta,old_index);
-        Println("just freed a block of size: " << old_size);
+        // Println("just freed a block of size: " << old_size);
     }
     else{
         int munnmap_res = munmap((void*)meta,sizeof(MetaData)+meta->getSize());
