@@ -11,6 +11,7 @@
 #define KILOB 1024
 #define HUNDRED_MIL 100000000
 
+
  struct statistics{
 
     size_t _num_free_blocks;
@@ -22,6 +23,7 @@
 
 typedef struct statistics* Stats;
 Stats stats = &stats_default;
+MetaData* meta_histogram[128];
 
 
 
@@ -90,8 +92,8 @@ MetaData* insert_to_meta_bin(MetaData* new_entry, MetaData* bin_start){
         return new_entry;
     }
     //
-    MetaData* prev= bin_start;
-    MetaData* itt= bin_start->getNextFree();
+    MetaData* prev = bin_start;
+    MetaData* itt = bin_start->getNextFree();
     while(itt){
         if (itt->getSize()>=new_entry->getSize()){
             insert_between_free_list(prev,new_entry,itt);
@@ -136,7 +138,7 @@ MetaData* search_bin_for_spot(int index, size_t entery_size){
 MetaData* search_histogram_for_spot(size_t entery_size){
     int index= (entery_size-1)/KILOB;
     MetaData* res=nullptr;
-    if (index<=HUNDERED_TWENTY_EIGHT-1){
+    if (index<HUNDERED_TWENTY_EIGHT){
         res = search_bin_for_spot(index,entery_size);
         return res;
     }
@@ -158,6 +160,9 @@ void remove_from_free_list(MetaData* to_unfree,int bin_index){
         return;
     }
     prev->setNextFree(next);
+    if (next!=nullptr){
+        next->setPrevFree(prev);
+    }
 }
 /**
  * gets a metadata of a block to unfree.
@@ -202,7 +207,6 @@ void mutual_connect_corners(MetaData* a, MetaData* b){
  * */
 MetaData* split_block(MetaData* block_to_split,int size,int index){
     remove_from_free_list(block_to_split,index);
-
     MetaData* block_a = block_to_split;
     MetaData* block_b = (MetaData*)((char*)block_to_split+sizeof(MetaData)+size);
     MetaData* prev = block_to_split->getPrev();
@@ -230,16 +234,50 @@ MetaData* split_block(MetaData* block_to_split,int size,int index){
     
 }
 
+void printMetaData(MetaData* meta){
+    Println("---Printing Block---");
+    Println("size: " <<meta->getSize());
+    Println("is free?: " <<meta->isFree());
+    Println("data location : " <<meta->getDataBlock());
+    Println("next is :" << meta->getNext());
+    Println("prev is :" << meta->getPrev());
+}
+void print_free_histogram(){
+    // Println("####print free histogram ####");
+    int count=0;
+    for (int i=0; i<HUNDERED_TWENTY_EIGHT;i++){
+        if (meta_histogram[i]==nullptr){
+            count++;
+        }        
+        else{
+            /*
+            Println("bin number : " << i << " is not empty");
+            printMetaData(meta_histogram[i]);
+            */
+        }
+    }
+    //Println("number of empty bins is :" << count);
+}
 /**
  * search inside a bin for a block to fit in or to split
  * actually split it
- * update stats (inside split_block..)
+ * update stats 
+ * update wilderness(?)
  * 
  * */
 MetaData* search_bin_and_split(size_t size,int index){
+    //Println("entered search_bin_and_split");
+    /*
+    if (index ==2 ) {
+        Println(" got to index 2");
+        printMetaData(meta_histogram[2]);
+    }
+    */
     MetaData* res=nullptr;
     MetaData* itt= meta_histogram[index];
     while(itt){
+        Println("entered search_bin_and_split");
+        printMetaData(itt);
         if(itt->getSize() >= size ){
             if (itt->getSize() >= size+HUNDERED_TWENTY_EIGHT+sizeof(MetaData)){
                 //split if splitable
@@ -250,6 +288,7 @@ MetaData* search_bin_and_split(size_t size,int index){
             }
             break;
         }        
+        itt= itt->getNextFree();
     }
     return res;
 }
@@ -258,21 +297,24 @@ MetaData* search_bin_and_split(size_t size,int index){
  *  find the smallest block in the heap.
  *  if it is splitable , split it.
  *  update stats(inside search_bin..)
+ * update wilderness(?)
  * 
  * */
 MetaData* search_histogram_and_split(size_t size,int index){
     MetaData* res= nullptr;
+    print_free_histogram();
     for (int i= index;i< HUNDERED_TWENTY_EIGHT;i++){
+        //Println("bin of index : " << i );
         res=search_bin_and_split(size,index);
         if (res){
+            Println("finished splitting alek");
+            printMetaData(res);
             break;
         }
     }
     return res;
 }
-void remove_from_free_list_wo_index(MetaData* ){
 
-}
 /**
  * expands the wilderness to be able to fit the new block of size size
  * update stats
@@ -285,7 +327,7 @@ MetaData* expand_wilderness(size_t new_wilderness_size){
         //indicating an error
         return nullptr;
     }
-    int old_index = old_wilderness_size/KILOB;
+    int old_index = (old_wilderness_size-1)/KILOB;
     unfree_block(wilderness,old_index);    
     wilderness->setSize(new_wilderness_size);            
     stats->_num_allocated_bytes+= new_wilderness_size - old_wilderness_size;
@@ -315,8 +357,8 @@ MetaData* merge_two(MetaData* prev, MetaData* next){
     }
     size_t prev_size= prev->getSize();
     size_t next_size= next->getSize();
-    int prev_index = prev_size/KILOB;
-    int next_index = next_size/KILOB;
+    int prev_index = (prev_size-1)/KILOB;
+    int next_index = (next_size-1)/KILOB;
     if (prev->isFree()){
         remove_from_free_list(prev, prev_index);            
     }
@@ -338,25 +380,37 @@ MetaData* merge_two(MetaData* prev, MetaData* next){
  *  merge left to meta
  *  merge meta to right
  *  update stats
- *  merge_two handles the wilderness
+ * Note:
+ *  usually merge_two handles the wilderness and update stats
+ *  if did not merge updates the stats and wilderness manually 
  * */
 MetaData* merge_neighbours(MetaData* meta,int index){
+    
     size_t meta_size= meta->getSize();
     MetaData* next = meta->getNext();
     MetaData* prev = meta->getPrev();
     MetaData* res = meta;
+    bool did_merge= false;
     if (prev && prev->isFree()){
+        did_merge = true;
         res = merge_two(prev,res);
     }
     if (next && next->isFree()){
+        did_merge = true;
         res = merge_two(res,next);
     }
-    stats->_num_free_blocks+=meta_size;
+    if (!did_merge){
+        meta->setFree(1);
+        insert_to_meta_histogram(meta);
+    }
     return res; 
 
 }
 void* smalloc(size_t size){
     // start from the top
+    if (size==0 || size > HUNDRED_MIL){
+        return nullptr;
+    }
     int index= (size-1)/KILOB;
     MetaData* res;
     if (index<HUNDERED_TWENTY_EIGHT){
@@ -377,9 +431,17 @@ void* smalloc(size_t size){
         }
         else{
             //not the first allocation
+            int allocated_blocks_before= _num_allocated_blocks();
             res = search_histogram_and_split(size,index);
+            int allocated_blocks_after = _num_allocated_blocks();
             if(res!=nullptr){
+                /*
                 //found a fitting block .if it was splitable we splat it
+                if (allocated_blocks_after == allocated_blocks_before){
+                    // we haven't split anything, so we need to update the stats
+                    stats_allocate_block()
+                }
+                */
                 return res+1;
             }
             //no fitting block or block to split
@@ -397,8 +459,11 @@ void* smalloc(size_t size){
             if (sbrk_res==NULL){
                 return NULL;
             }
+            res = (MetaData*)sbrk_res;
+            *res = MetaData(size,0,res+1,wilderness,0);
+            wilderness=res;
             stats_allocate_block(size);
-            return (char*)sbrk_res+sizeof(MetaData);
+            return res+1;
         }
     }
     else{
@@ -427,13 +492,21 @@ void sfree(void* p){
         return;
     }
     MetaData* meta =(MetaData*)((char*)p-sizeof(MetaData));
+    // debug
+    if (meta->getDataBlock()!=p){
+        std::cout << "something is wrong with the pointer" << std::endl;
+
+    }
+    //
     if (meta->isFree()){
         return;
     }
     int old_size = meta->getSize();
-    int old_index = old_size/KILOB;
+    int old_index = (old_size-1)/KILOB;
     if (old_index<HUNDERED_TWENTY_EIGHT){
+        stats_free_block(old_size);
         merge_neighbours(meta,old_index);
+        Println("just freed a block of size: " << old_size);
     }
     else{
         int munnmap_res = munmap((void*)meta,sizeof(MetaData)+meta->getSize());
@@ -506,7 +579,7 @@ void* srealloc(void* oldp, size_t size){
     }
     MetaData* meta =(MetaData*)((char*)oldp-sizeof(MetaData));
     int old_size= meta->getSize();
-    int old_index = old_size/KILOB;
+    int old_index = (old_size-1)/KILOB;
     void* smalloc_res=nullptr;
     MetaData* res=nullptr;
     if (old_index<HUNDERED_TWENTY_EIGHT){
@@ -531,7 +604,7 @@ void* srealloc(void* oldp, size_t size){
             }
         }
         // (2)
-        int new_index = res->getSize()/KILOB;
+        int new_index = (res->getSize()-1)/KILOB;
         if (res->getSize() >= size+HUNDERED_TWENTY_EIGHT+sizeof(MetaData)){
             //split if splitable
             res = split_block(res,size, new_index);
@@ -573,4 +646,12 @@ size_t _num_meta_data_bytes(){
 
 size_t _size_meta_data(){
     return sizeof(MetaData);
+}
+
+void printStats(){
+    Println("Stats: ");
+    Println("free blocks: " << _num_free_blocks());
+    Println("free bytes: "<< _num_free_bytes());
+    Println("allocated blocks: "<< _num_allocated_blocks());
+    Println("allocated bytes: "<< _num_free_bytes());
 }

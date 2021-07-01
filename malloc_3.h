@@ -1,7 +1,14 @@
 #ifndef _MALLOC3_H_ 
 #define _MALLOC3_H_
+#include <unistd.h>
+#include <iostream>
 
+#define Println(expression) do {\
+    std::cout<<expression<<std::endl;\
+}\
+while(0)\
 
+void printStats();
 class MetaData{
     size_t  _size;
     bool _is_free;
@@ -70,7 +77,6 @@ class MetaData{
         if (next==nullptr){}
     }
 };
-MetaData* meta_histogram[128];
 
 void stats_allocate_block(size_t num_bytes);
 void* smalloc(size_t size);

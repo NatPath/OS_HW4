@@ -1,8 +1,8 @@
 
-#include "malloc_3.cpp"
 #include <assert.h>
 #include <iostream>
-#define META_SIZE 48 // put your meta data name here.
+#include "malloc_3.h"
+#define META_SIZE sizeof(MetaData) // put your meta data name here.
 #define MAX_MALLOC_SIZE 100000000
 
 
@@ -59,6 +59,7 @@ int main() {
     assert(_num_meta_data_bytes() == 6 * META_SIZE);
 
     sfree(b3);
+    printStats();
     assert(_num_free_blocks() == 1);
     assert(_num_free_bytes() == 3000);
     assert(_num_allocated_blocks() == 6);
@@ -66,6 +67,7 @@ int main() {
     assert(_num_meta_data_bytes() == 6 * META_SIZE);
 
     b3 = smalloc(1000);
+    printStats();
     assert(_num_free_blocks() == 1);
     assert(_num_free_bytes() == 3000 - META_SIZE - 1000);
     assert(_num_allocated_blocks() == 7);
