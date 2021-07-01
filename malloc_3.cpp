@@ -107,7 +107,7 @@ MetaData* insert_to_meta_bin(MetaData* new_entry, MetaData* bin_start){
 void insert_to_meta_histogram(MetaData* new_entry){
     size_t entery_size= new_entry->getSize();
     int index= (entery_size-1)/KILOB;
-    if (index<=HUNDERED_TWENTY_EIGHT-1){
+    if (index<HUNDERED_TWENTY_EIGHT){
         meta_histogram[index]= insert_to_meta_bin(new_entry,meta_histogram[index]);
     }
     else{
@@ -195,7 +195,7 @@ void mutual_connect_corners(MetaData* a, MetaData* b){
  * 2) remove block from free_list
  * 3) insert Block_B to free_list
  * 4) occupy Block_A 
- * 5) update stats
+ * 5) update stats - unfree_block(size) , _num_allocated_blocks++
  * 6) update wilderness if needed
  * 7) return Block_A
  * 
@@ -205,16 +205,23 @@ MetaData* split_block(MetaData* block_to_split,int size,int index){
 
     MetaData* block_a = block_to_split;
     MetaData* block_b = (MetaData*)((char*)block_to_split+sizeof(MetaData)+size);
+    MetaData* prev = block_to_split->getPrev();
+    MetaData* next = block_to_split->getNext();
+
     size_t size_left = block_to_split->getSize()-sizeof(MetaData)- size;
     //handeling pointers in the original block list
     *block_a = MetaData(size,0,block_a+1,block_to_split->getPrev(),0);
     *block_b = MetaData(size_left,1,block_b+1,block_a,0);
     block_a->setNext(block_b);
     block_b->setNext(block_to_split->getNext());
+    mutual_connect_corners(prev,block_a);
+    mutual_connect_corners(block_b,next);
+
     //
     insert_to_meta_histogram(block_b);
     //update stats
     stats_unfree_block(size);
+    stats_allocate_block(0); // equivalent to stats->_num_allocated_blocks++
     if(block_to_split==wilderness){
         //update wilderness
         wilderness=block_b;
@@ -288,7 +295,9 @@ MetaData* expand_wilderness(size_t new_wilderness_size){
 void* mmap_wrap(size_t size){
 
     void* res= mmap(NULL,size+sizeof(MetaData),PROT_EXEC|PROT_READ|PROT_WRITE,MAP_ANONYMOUS,-1,0);
-    stats_allocate_block(size);
+    if (res== (void*)(-1)){
+        return nullptr;
+    }
     return res;
 }
 /**
@@ -308,8 +317,12 @@ MetaData* merge_two(MetaData* prev, MetaData* next){
     size_t next_size= next->getSize();
     int prev_index = prev_size/KILOB;
     int next_index = next_size/KILOB;
-    remove_from_free_list(prev, prev_index);            
-    remove_from_free_list(next, next_index);            
+    if (prev->isFree()){
+        remove_from_free_list(prev, prev_index);            
+    }
+    if (next->isFree()){
+        remove_from_free_list(next, next_index);            
+    }
     //handles pointers in original list
     *prev = MetaData(prev_size+next_size+sizeof(MetaData),1,prev+1,prev->getPrev(),0);
     mutual_connect_corners(prev->getPrev(),prev);
@@ -322,9 +335,13 @@ MetaData* merge_two(MetaData* prev, MetaData* next){
 
 }
 /**
- * 
+ *  merge left to meta
+ *  merge meta to right
+ *  update stats
+ *  merge_two handles the wilderness
  * */
 MetaData* merge_neighbours(MetaData* meta,int index){
+    size_t meta_size= meta->getSize();
     MetaData* next = meta->getNext();
     MetaData* prev = meta->getPrev();
     MetaData* res = meta;
@@ -334,6 +351,7 @@ MetaData* merge_neighbours(MetaData* meta,int index){
     if (next && next->isFree()){
         res = merge_two(res,next);
     }
+    stats->_num_free_blocks+=meta_size;
     return res; 
 
 }
@@ -380,12 +398,17 @@ void* smalloc(size_t size){
                 return NULL;
             }
             stats_allocate_block(size);
-            return sbrk_res+sizeof(MetaData);
+            return (char*)sbrk_res+sizeof(MetaData);
         }
     }
     else{
         //block too big for a bin
-        mmap_wrap(size);
+        void* mmap_res = mmap_wrap(size);
+        res = (MetaData*)mmap_res;
+        *res = MetaData(size,0,res+sizeof(MetaData),nullptr,1);
+        stats_allocate_block(size);
+        return res+1;
+
     }
 }
 
@@ -407,7 +430,8 @@ void sfree(void* p){
     if (meta->isFree()){
         return;
     }
-    int old_index = meta->getSize()/KILOB;
+    int old_size = meta->getSize();
+    int old_index = old_size/KILOB;
     if (old_index<HUNDERED_TWENTY_EIGHT){
         merge_neighbours(meta,old_index);
     }
@@ -416,7 +440,63 @@ void sfree(void* p){
         if (munnmap_res==-1){
             std::cout<< "failed munmmap" <<std::endl;
         }
-        // i think we don't need to do anything about the statistics in this case
+        stats->_num_allocated_bytes-=old_size;
+        stats->_num_allocated_blocks--;
+    }
+}
+/**
+ * gets a bloc and a size_to_fit .
+ * merge the blocks in the neighbourhood just enough to fit the required size_to_fit
+ * returns a pointer to the new contingous free block 
+ * if wasn't able to fit, return nullptr
+ * 
+ * NOTE: after the merge the block will be regarded as free
+ * 
+ * */
+MetaData* try_to_merge(MetaData* curr, size_t size_to_fit){
+    size_t curr_size= curr->getSize();
+    MetaData* prev = curr->getPrev();
+    MetaData* next = curr->getNext();
+    MetaData* res = nullptr;
+    bool prev_and_meta_big_enough = false;
+    if (prev && prev->getSize() + curr_size - sizeof(MetaData) >= size_to_fit){
+        prev_and_meta_big_enough = true;
+    }
+    bool next_and_meta_big_enough = false;
+    if( next && next->getSize() + curr_size - sizeof(MetaData) >= size_to_fit){
+        next_and_meta_big_enough = true;
+    }
+    if (prev_and_meta_big_enough){
+        //merging with left
+        res = merge_two(prev,curr) ;       
+        return res;
+    }
+    if (next_and_meta_big_enough){
+        //merging with right
+        res = merge_two(curr,next);
+        return res;
+    }
+    bool together_big_enough = false;
+    if (next && prev &&  (prev->getSize() + curr_size + next->getSize()+ 2*sizeof(MetaData) >= size_to_fit ) ){
+        together_big_enough =true;
+    }
+    if ( together_big_enough){
+        res = merge_neighbours(curr,size_to_fit);
+        return res;
+    }
+    return res;
+
+    
+}
+MetaData* copy_data_wrap(MetaData* dest, void* source, size_t size_of_data){
+    void* dest_data = dest->getDataBlock();
+    void* res_data =memmove(dest_data,source,size_of_data);
+    if (res_data==nullptr){
+        std::cerr << "error memmoving" << std::endl;
+        return nullptr;
+    }
+    else{
+        return dest;        
     }
 }
 
@@ -425,18 +505,50 @@ void* srealloc(void* oldp, size_t size){
         return smalloc(size);
     }
     MetaData* meta =(MetaData*)((char*)oldp-sizeof(MetaData));
-    if (meta->getSize()>= size && size > 0){
-        return oldp;       
+    int old_size= meta->getSize();
+    int old_index = old_size/KILOB;
+    void* smalloc_res=nullptr;
+    MetaData* res=nullptr;
+    if (old_index<HUNDERED_TWENTY_EIGHT){
+        //heap stuff
+        MetaData* prev = meta->getPrev();
+        MetaData* next = meta->getNext();
+
+        //(1)
+        if (meta->getSize()>= size && size > 0){
+            //try to reuse (a)
+            res=meta;
+        }
+        else{
+            // b c d
+            res = try_to_merge(meta, size);
+            if (res==nullptr){
+                // cases a-d failed
+                smalloc_res = smalloc(size);
+                memmove(smalloc_res,oldp,size);
+                sfree(oldp);
+                return smalloc_res;
+            }
+        }
+        // (2)
+        int new_index = res->getSize()/KILOB;
+        if (res->getSize() >= size+HUNDERED_TWENTY_EIGHT+sizeof(MetaData)){
+            //split if splitable
+            res = split_block(res,size, new_index);
+        }
     }
     else{
-        void* smalloc_res=smalloc(size);
-        if (smalloc_res==NULL){
-            return NULL;
-        }
-        std::memcpy(smalloc_res,(const void*)oldp,meta->getSize());
-        sfree(oldp);
-        return smalloc_res;
-    }        
+        //munmap
+        smalloc_res = smalloc(size);
+        res = (MetaData*)((char*)smalloc_res-sizeof(MetaData));
+    }
+    res = copy_data_wrap(res,oldp,size);
+    sfree(oldp);
+    if (res== nullptr){
+        std::cerr << "copying failed" << std::endl;
+        return nullptr;
+    }
+    return res+1;
 }
 
 size_t _num_free_blocks(){
