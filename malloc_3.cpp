@@ -171,6 +171,23 @@ void unfree_block(MetaData* to_unfree,int bin_index){
     remove_from_free_list(to_unfree,bin_index);
     stats_unfree_block(to_unfree->getSize());    
 }
+void mutual_connect_corners(MetaData* a, MetaData* b){
+    if (a==nullptr ){
+        if(b){
+            b->setPrev(nullptr);
+        }
+        return;
+    }
+    if (b==nullptr){
+        if(a){
+            a->setNext(nullptr);
+        }
+        return;
+    }
+    a->setNext(b);
+    b->setPrev(a);
+
+}
 
 /**
  * 
@@ -274,8 +291,35 @@ void* mmap_wrap(size_t size){
     stats_allocate_block(size);
     return res;
 }
+/**
+ * overall, makes the two adjecent free blocks into one big free block
+ * 1) removes both the blocks from the histogram
+ * 2) allocates a new block and inserts it into the histogram
+ * 3) update statistics
+ * 4) update wilderness
+ * 
+ * note: the case in which two blocks make a bigger than 128kb block will not be tested
+ * */
 MetaData* merge_two(MetaData* prev, MetaData* next){
-    
+    if (next == wilderness){
+        wilderness=prev;
+    }
+    size_t prev_size= prev->getSize();
+    size_t next_size= next->getSize();
+    int prev_index = prev_size/KILOB;
+    int next_index = next_size/KILOB;
+    remove_from_free_list(prev, prev_index);            
+    remove_from_free_list(next, next_index);            
+    //handles pointers in original list
+    *prev = MetaData(prev_size+next_size+sizeof(MetaData),1,prev+1,prev->getPrev(),0);
+    mutual_connect_corners(prev->getPrev(),prev);
+    mutual_connect_corners(prev,next->getNext());
+
+    insert_to_meta_histogram(prev);
+    stats_unfree_block(0);
+
+    return prev;
+
 }
 /**
  * 
@@ -285,7 +329,7 @@ MetaData* merge_neighbours(MetaData* meta,int index){
     MetaData* prev = meta->getPrev();
     MetaData* res = meta;
     if (prev && prev->isFree()){
-        res = merge_two(prev,meta);
+        res = merge_two(prev,res);
     }
     if (next && next->isFree()){
         res = merge_two(res,next);
@@ -372,9 +416,10 @@ void sfree(void* p){
         if (munnmap_res==-1){
             std::cout<< "failed munmmap" <<std::endl;
         }
+        // i think we don't need to do anything about the statistics in this case
     }
-
 }
+
 void* srealloc(void* oldp, size_t size){
     if (oldp==NULL){
         return smalloc(size);
