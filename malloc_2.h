@@ -36,6 +36,7 @@ class MetaData{
         return _data_block;
     }
 };
+
 void stats_allocate_block(size_t num_bytes);
 void* smalloc(size_t size);
 void* scalloc(size_t num, size_t size);

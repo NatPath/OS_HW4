@@ -1,0 +1,6 @@
+1) keep wilderness updated at all times
+2) adapt free
+3) adapt calloc
+4) adapt realloc ****
+5) implement merge when needed
+6) implement mmap stuff

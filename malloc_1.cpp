@@ -1,5 +1,4 @@
 #include <unistd.h>
-#include <iostream>
 #include "malloc_1.h"
 
 #define HUNDRED_MIL 100000000
@@ -11,6 +10,5 @@ void* smalloc(size_t size){
     if(res == (void*)(-1)){
         return NULL;
     }
-    //res=(void*)((char*)res+1);
     return res;
 }

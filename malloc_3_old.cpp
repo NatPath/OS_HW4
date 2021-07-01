@@ -1,9 +1,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <cstring>
-#include "malloc_2.h"
 
-// UNCOMMENT THIS BEFORE SUBMITION - BECAUSE WE DONT SUBMIT malloc_2.h
+
  struct statistics{
 
     size_t _num_free_blocks;
@@ -14,18 +13,18 @@
 } stats_default{0,0,0,0};
 
 typedef struct statistics* Stats;
-Stats stats = &stats_default;
 
 
-/*
 class MetaData{
     size_t  _size;
     bool _is_free;
-    void* _data_block;
+    //void* _data_block;
     MetaData* _next;
     MetaData* _prev;
+    MetaData* _next_free;
+    MetaData* _prev_free;
     public:
-    MetaData(size_t size ,bool is_free,void* data_block, MetaData* last_metadata):_size(size),_is_free(is_free),_data_block(data_block),_prev(last_metadata),_next(nullptr){
+    MetaData(size_t size ,bool is_free, MetaData* last_metadata):_size(size),_is_free(is_free),_prev(last_metadata),_next(nullptr),_prev_free(nullptr),_next_free(nullptr){
     }
     size_t getSize(){
         return _size;
@@ -48,59 +47,67 @@ class MetaData{
     void setPrev(MetaData* prev){
         _prev=prev;
     }
-};
-*/
+    MetaData* getNextFree(){
+        return _next_free;
+    }
+    void setNextFree(MetaData* nextFree){
+        _next_free=nextFree;
+    }
+    MetaData* getPrevFree(){
+        return _prev_free;
+    }
+    void setPrevFree(MetaData* prev_free){
+        _prev_free=prev_free;
+    }
 
-MetaData *heap_bottom=nullptr;
+
+};
 
 void stats_allocate_block(size_t num_bytes){
-     stats->_num_allocated_blocks++;
-     stats->_num_allocated_bytes+=num_bytes;
+     stats._num_allocated_blocks++;
+     stats._num_allocated_bytes+=num_bytes;
 }
 
-void stats_free_block(size_t num_bytes){
-    stats->_num_free_blocks++;
-    stats->_num_free_bytes+=num_bytes;
-}
-
-void stats_unfree_block(size_t num_bytes){
-    stats->_num_free_blocks--;
-    stats->_num_free_bytes-=num_bytes;
-}
-
+MetaData *heap_bottom=nullptr;
+statistics stats = stats_default;
+MetaData *histogram[128];
 
 //increses the heap size by size (allocates a block). returns the address of the new allocated block
 #define HUNDRED_MIL 100000000
 void* sbrk_wrap(size_t size){
-    if(size == sizeof(MetaData) || size > HUNDRED_MIL + sizeof(MetaData)){
+    if(size == 0 || size > HUNDRED_MIL){
         return NULL;
     }
     void* res=sbrk(size);
     if(res == (void*)(-1)){
         return NULL;
     }
-    //res=(void*)((char*)res+1);
+    res=res+1;
     return res;
 }
 
 void* smalloc(size_t size){
     void* sbrk_res;
-    if (!heap_bottom){
+    if (heap_bottom){
         sbrk_res= sbrk_wrap(sizeof(MetaData)+size);
         if (sbrk_res==NULL){
             return NULL;
         }
         heap_bottom=(MetaData*)sbrk_res;
-        *heap_bottom = MetaData(size,0,(void*)((char*)sbrk_res+sizeof(MetaData)),NULL);
+        *heap_bottom = MetaData(size,0,NULL);
         stats_allocate_block(size);
-        return heap_bottom+1;
+        for (int i=0;i<128;i++){// initilize free block histogram list
+            *histogram[i]=MetaData(0,1,nullptr);
+        }
+        return heap_bottom+sizeof(MetaData);
     }
     MetaData* itt= heap_bottom;
     while (itt){
         if (itt->isFree()&& itt->getSize()>=size){
             itt->setFree(0);
-            stats_unfree_block(itt->getSize());
-            return itt+1;
+            stats._num_free_blocks--;
+            stats._num_free_bytes-=size;
+            return itt+sizeof(MetaData);
         }        
         else{
             if (itt->getNext()==NULL){// checked the last block, need to allocate a new one
@@ -109,11 +116,10 @@ void* smalloc(size_t size){
                     return NULL;
                 }
                 itt->setNext((MetaData*)sbrk_res);
-                *(itt->getNext()) = MetaData(size,0,(void*)((char*)sbrk_res+sizeof(MetaData)),itt);
+                *(itt->getNext()) = MetaData(size,0,itt);
                 stats_allocate_block(size);
-                return itt->getNext()+1;
+                return itt->getNext()+sizeof(MetaData);
             }
-            itt = itt->getNext();
         }
     }
 }
@@ -127,54 +133,64 @@ void* scalloc(size_t num, size_t size){
     std::memset(smalloc_res,0,size*num);
     return smalloc_res;
 }
+void insertFreeBlock(MetaData* meta){
+   // if 
+}
 void sfree(void* p){
-    if(p == NULL ){
+    if(p == NULL){
         return;
     }
-    MetaData* meta =(MetaData*)((char*)p-sizeof(MetaData));
-    if (meta->isFree()){
-        return;
-    }
-    stats_free_block(meta->getSize());
+
+    MetaData* meta =(MetaData*)(p-sizeof(MetaData));
+    stats._num_free_blocks++;
+    stats._num_free_bytes+=meta->getSize();
     meta->setFree(true);
+
+    //update free list
+    insertFreeBlock(meta);
+
+    
+    
+    
 }
 void* srealloc(void* oldp, size_t size){
-    if (oldp==NULL){
-        return smalloc(size);
-    }
-    MetaData* meta =(MetaData*)((char*)oldp-sizeof(MetaData));
-    if (meta->getSize()>= size && size > 0){
+    MetaData* meta =(MetaData*)(oldp-sizeof(MetaData));
+    if (meta->getSize()> size){
         return oldp;       
+    }
+    if (oldp==NULL){
+        return (MetaData*)smalloc(size);
     }
     else{
         void* smalloc_res=smalloc(size);
         if (smalloc_res==NULL){
             return NULL;
         }
-        std::memcpy(smalloc_res,(const void*)oldp,meta->getSize());
+        MetaData* newp= (MetaData*)smalloc_res;
+        std::memcpy(oldp,newp,meta->getSize());
         sfree(oldp);
-        return smalloc_res;
+        return newp;
     }        
 }
 
 size_t _num_free_blocks(){
-    return stats->_num_free_blocks;
+    return stats._num_free_blocks;
 }
 
 size_t _num_free_bytes(){
-    return stats->_num_free_bytes;
+    return stats._num_free_bytes;
 }
 
 size_t _num_allocated_blocks(){
-    return stats->_num_allocated_blocks;
+    return stats._num_allocated_blocks;
 }
 
 size_t _num_allocated_bytes(){
-    return stats->_num_allocated_bytes;
+    return stats._num_allocated_bytes;
 }
 
 size_t _num_meta_data_bytes(){
-    return stats->_num_allocated_blocks * sizeof(MetaData);
+    return stats._num_allocated_blocks * sizeof(MetaData);
 }
 
 size_t _size_meta_data(){
