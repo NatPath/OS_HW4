@@ -17,16 +17,20 @@ class MetaData{
     MetaData* _prev;
     MetaData* _next_free;
     MetaData* _prev_free;
+    /*
     MetaData* _next_mmap;
     MetaData* _prev_mmap;
+    */
     bool _is_mmaped;
 
     public:
     MetaData(size_t size ,bool is_free,void* data_block, MetaData* last_metadata,bool is_mmaped):_size(size),_is_free(is_free),_data_block(data_block),_prev(last_metadata),_next(nullptr),_is_mmaped(is_mmaped){
         _next_free=nullptr;
         _prev_free=nullptr;
+        /*
         _next_mmap=nullptr;
         _prev_mmap=nullptr;
+        */
     }
     size_t getSize(){
         return _size;
