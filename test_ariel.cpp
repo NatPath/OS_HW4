@@ -7,7 +7,7 @@
 #include <sys/wait.h>
 #include <chrono>
 #include "printMemoryList.h"
-#include "malloc_3.h"
+#include "os_malloc.h"
 #include "colors.h"
 
 /////////////////////////////////////////////////////
@@ -19,6 +19,8 @@
 
 // Copy your type here
 class MetaData{
+
+    public:
     size_t  _size;
     bool _is_free;
     void* _data_block;
@@ -26,20 +28,10 @@ class MetaData{
     MetaData* _prev;
     MetaData* _next_free;
     MetaData* _prev_free;
-    /*
-    MetaData* _next_mmap;
-    MetaData* _prev_mmap;
-    */
     bool _is_mmaped;
-
-    public:
     MetaData(size_t size ,bool is_free,void* data_block, MetaData* last_metadata,bool is_mmaped):_size(size),_is_free(is_free),_data_block(data_block),_prev(last_metadata),_next(nullptr),_is_mmaped(is_mmaped){
         _next_free=nullptr;
         _prev_free=nullptr;
-        /*
-        _next_mmap=nullptr;
-        _prev_mmap=nullptr;
-        */
     }
     size_t getSize(){
         return _size;
@@ -93,13 +85,15 @@ class MetaData{
     }
 };
 // don't change anything from the one in malloc_3.c !!not even the order of args!!!
+/*
 typedef struct MallocMetadata3 {
 	size_t size;
 	bool is_free;
 	bool on_heap;
 	MallocMetadata3 *next;
 	MallocMetadata3 *prev;
-} Metadata3;
+} MetaData;
+*/
 
 
 ///////////////////////////////////////////////////
@@ -157,7 +151,7 @@ std::string allocNoFree(void *array[MAX_ALLOC]) {
 	checkStats(0, 0, __LINE__);
 	DO_MALLOC(array[3] = smalloc(11e6));
 	checkStats(11e6, 1, __LINE__);
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -187,7 +181,7 @@ std::string allocandFree(void *array[MAX_ALLOC]) {
 	}
 	checkStats(0, 0, __LINE__);
 
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -240,7 +234,7 @@ std::string allocandFreeMerge(void *array[MAX_ALLOC]) {
 		sfree(array[i + 7]);
 		checkStats(0, 0, __LINE__);
 	}
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -282,7 +276,7 @@ std::string testRealloc(void *array[MAX_ALLOC]) {
 		}
 	}
 
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -341,11 +335,12 @@ std::string testRealloc2(void *array[MAX_ALLOC]) {
 	for (int i = 0 ; i < default_block_size ; ++i) {
 		if (((char *) array[7])[i] != 'b') {
 			std::cout << "realloc didnt copy the char b to index " << i << std::endl;
+			std::cout << "instead the char is :" << ((char*) array[7])[i] << std::endl;
 			break;
 		}
 	}
 
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -375,7 +370,7 @@ std::string testWild(void *array[MAX_ALLOC]) {
 	DO_MALLOC(array[MAX_ALLOC - 9] = srealloc(array[MAX_ALLOC - 9], default_block_size * 2));
 	checkStats(0, 0, __LINE__);
 
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -433,7 +428,7 @@ std::string testSplitAndMerge(void *array[MAX_ALLOC]) {
 	DO_MALLOC(srealloc(array[13], default_block_size + default_block_size / 3));
 	checkStats(0, 0, __LINE__);
 
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -478,7 +473,7 @@ std::string testCalloc(void *array[MAX_ALLOC]) {
 	}
 
 
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -501,20 +496,20 @@ std::string testFreeAllAndMerge(void *array[MAX_ALLOC]) {
 	}
 	checkStats(0, 0, __LINE__);
 
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
 std::string testInit(void *array[MAX_ALLOC]) {
 	std::string expected = "|F:1||U:2|";
-	if (sizeof(Metadata3) != _size_meta_data()) {
+	if (sizeof(MetaData) != _size_meta_data()) {
 		std::cout << "You didn't copy the metadata as is Or a bug in  _size_meta_data()" << std::endl;
 	}
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	checkStats(0, 0, __LINE__);
 	DO_MALLOC(array[0] = smalloc(2));
 	checkStats(0, 0, __LINE__);
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -536,7 +531,7 @@ std::string testBadArgs(void *array[MAX_ALLOC]) {
 			std::cout << "missed edge case: " << std::to_string(option) << std::endl;
 		}
 	}
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -558,6 +553,7 @@ std::string testReallocMMap(void *array[MAX_ALLOC]) {
 	for (int i = 0 ; i < size_for_mmap ; ++i) {
 		if (((char *) array[1])[i] != 'a') {
 			std::cout << "realloc didnt copy the char a to index " << i << std::endl;
+			std::cerr << "realloc didnt copy the char a to index " << i << std::endl;
 			break;
 		}
 	}
@@ -571,7 +567,7 @@ std::string testReallocMMap(void *array[MAX_ALLOC]) {
 			break;
 		}
 	}
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -607,7 +603,7 @@ std::string testReallocDec(void *array[MAX_ALLOC]) {
 		}
 	}
 
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -656,7 +652,7 @@ std::string testReallocDecOverwrite(void *array[MAX_ALLOC]) {
 		}
 	}
 
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -688,7 +684,7 @@ std::string testNoRecMerge(void *array[MAX_ALLOC]) {
 	checkStats(0, 0, __LINE__);
 	DO_MALLOC(array[0] = srealloc(array[0], default_block_size / 3));
 	checkStats(0, 0, __LINE__);
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	expected += start;
 	expected += "|F:" + std::to_string(default_block_size *2 + size_of_metadata);
 	expected += "|";
@@ -696,7 +692,7 @@ std::string testNoRecMerge(void *array[MAX_ALLOC]) {
 	sfree(array[2]);
 	checkStats(0, 0, __LINE__);
 
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -732,7 +728,7 @@ std::string testReallocWildLikePiazza(void *array[MAX_ALLOC]) {
 		}
 	}
 
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -771,7 +767,7 @@ std::string testReallocWilderness2(void *array[MAX_ALLOC]) {
 	if (array[4] != array[3]) {
 		std::cout << "srealloc on wilderness didn't merge with adjacent block" << std::endl;
 	}
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 
 	for (int i = 0 ; i < default_block_size ; ++i) {
 		if (((char *) array[3])[i] != (char) i) {
@@ -795,7 +791,7 @@ std::string testReallocWilderness2(void *array[MAX_ALLOC]) {
 	expected += "|F:" + std::to_string(default_block_size * 3);
 	expected += "|U:" + std::to_string(default_block_size * 2);
 	expected += "|U:" + std::to_string(default_block_size * 3) + "|";
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -834,7 +830,7 @@ std::string mergeVariations(void *array[MAX_ALLOC]) {
 	//if (((char *)array[3])[0] != firstByteInFreedBlock) {
 	//	std::cout << "content in freed right block changed" << std::endl;
 	//}
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 
 	for (int i = 0 ; i < default_block_size ; ++i) {
 		if (((char *) array[2])[i] != (char) i) {
@@ -860,7 +856,7 @@ std::string mergeVariations(void *array[MAX_ALLOC]) {
 	}
 	expected += "|U:" + std::to_string(default_block_size);
 	expected += "|U:" + std::to_string(default_block_size * 4 + 3 * _size_meta_data()) + "|";
-	printMemory<Metadata3>(memory_start_addr, true);
+	printMemory<MetaData>(memory_start_addr, true);
 	return expected;
 }
 
@@ -932,31 +928,46 @@ std::string function_names[NUM_FUNC] = {"testInit", "allocNoFree", "allocandFree
 										"testSplitAndMerge", "testCalloc", "testBadArgs", "testReallocMMap", "testReallocDec" ,"testReallocDecOverwrite" ,"testNoRecMerge" ,"testReallocWildLikePiazza" , "testReallocWilderness2" ,"mergeVariations"};
 
 void checkStats(size_t bytes_mmap, int blocks_mmap, int line_number) {
-	updateStats<Metadata3>(memory_start_addr, current_stats, bytes_mmap, blocks_mmap);
+	updateStats<MetaData>(memory_start_addr, current_stats, bytes_mmap, blocks_mmap);
 	if (_num_allocated_blocks() != current_stats.num_allocated_blocks) {
 		std::cout << "num_allocated_blocks is not accurate at line: " << line_number << std::endl;
 		std::cout << "Expected: " << current_stats.num_allocated_blocks << std::endl;
 		std::cout << "Recived:  " << _num_allocated_blocks() << std::endl;
+		std::cerr << "num_allocated_blocks is not accurate at line: " << line_number << std::endl;
+		std::cerr << "Expected: " << current_stats.num_allocated_blocks << std::endl;
+		std::cerr << "Recived:  " << _num_allocated_blocks() << std::endl;
 	}
 	if (_num_allocated_bytes() != current_stats.num_allocated_bytes) {
 		std::cout << "num_allocated_bytes is not accurate at line: " << line_number << std::endl;
 		std::cout << "Expected: " << current_stats.num_allocated_bytes << std::endl;
 		std::cout << "Recived:  " << _num_allocated_bytes() << std::endl;
+		std::cerr << "num_allocated_bytes is not accurate at line: " << line_number << std::endl;
+		std::cerr << "Expected: " << current_stats.num_allocated_bytes << std::endl;
+		std::cerr << "Recived:  " << _num_allocated_bytes() << std::endl;
 	}
 	if (_num_meta_data_bytes() != current_stats.num_meta_data_bytes) {
 		std::cout << "num_meta_data_bytes is not accurate at line: " << line_number << std::endl;
 		std::cout << "Expected: " << current_stats.num_meta_data_bytes << std::endl;
 		std::cout << "Recived:  " << _num_meta_data_bytes() << std::endl;
+		std::cerr << "num_meta_data_bytes is not accurate at line: " << line_number << std::endl;
+		std::cerr << "Expected: " << current_stats.num_meta_data_bytes << std::endl;
+		std::cerr << "Recived:  " << _num_meta_data_bytes() << std::endl;
 	}
 	if (_num_free_blocks() != current_stats.num_free_blocks) {
 		std::cout << "num_free_blocks is not accurate at line: " << line_number << std::endl;
 		std::cout << "Expected: " << current_stats.num_free_blocks << std::endl;
 		std::cout << "Recived:  " << _num_free_blocks() << std::endl;
+		std::cerr << "num_free_blocks is not accurate at line: " << line_number << std::endl;
+		std::cerr << "Expected: " << current_stats.num_free_blocks << std::endl;
+		std::cerr << "Recived:  " << _num_free_blocks() << std::endl;
 	}
 	if (_num_free_bytes() != current_stats.num_free_bytes) {
 		std::cout << "num_free_bytes is not accurate at line: " << line_number << std::endl;
 		std::cout << "Expected: " << current_stats.num_free_bytes << std::endl;
 		std::cout << "Recived:  " << _num_free_bytes() << std::endl;
+		std::cerr << "num_free_bytes is not accurate at line: " << line_number << std::endl;
+		std::cerr << "Expected: " << current_stats.num_free_bytes << std::endl;
+		std::cerr << "Recived:  " << _num_free_bytes() << std::endl;
 	}
 }
 
@@ -1035,6 +1046,7 @@ int main() {
 	printStartRunningTests();
 
 	auto t1 = high_resolution_clock::now();
+
 
 	for (int i = 0 ; i < NUM_FUNC ; ++i) {
 		pid_t pid = fork();

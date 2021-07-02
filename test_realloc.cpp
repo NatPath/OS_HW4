@@ -6,9 +6,9 @@
 #define MALLOC_VERSION 3
 
 #if (MALLOC_VERSION == 2)
-    #include "malloc_2.h"
+    #include "malloc_2.cpp"
 #else
-    #include "malloc_3.h"
+    #include "malloc_3.cpp"
 #endif
 
 size_t valid_free_blocks = 0;

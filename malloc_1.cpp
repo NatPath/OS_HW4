@@ -1,5 +1,4 @@
 #include <unistd.h>
-#include "malloc_1.h"
 
 #define HUNDRED_MIL 100000000
 void* smalloc(size_t size){

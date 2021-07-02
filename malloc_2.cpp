@@ -1,7 +1,6 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <cstring>
-//#include "malloc_2.h"
 
 // UNCOMMENT THIS BEFORE SUBMITION - BECAUSE WE DONT SUBMIT malloc_2.h
  struct statistics{
@@ -14,7 +13,7 @@
 } stats_default{0,0,0,0};
 
 typedef struct statistics* Stats;
-Stats stats = &stats_default;
+Stats our_stats = &stats_default;
 
 
 class MetaData{
@@ -67,18 +66,18 @@ size_t _size_meta_data();
 MetaData *heap_bottom=nullptr;
 
 void stats_allocate_block(size_t num_bytes){
-     stats->_num_allocated_blocks++;
-     stats->_num_allocated_bytes+=num_bytes;
+     our_stats->_num_allocated_blocks++;
+     our_stats->_num_allocated_bytes+=num_bytes;
 }
 
 void stats_free_block(size_t num_bytes){
-    stats->_num_free_blocks++;
-    stats->_num_free_bytes+=num_bytes;
+    our_stats->_num_free_blocks++;
+    our_stats->_num_free_bytes+=num_bytes;
 }
 
 void stats_unfree_block(size_t num_bytes){
-    stats->_num_free_blocks--;
-    stats->_num_free_bytes-=num_bytes;
+    our_stats->_num_free_blocks--;
+    our_stats->_num_free_bytes-=num_bytes;
 }
 
 
@@ -155,6 +154,9 @@ void* srealloc(void* oldp, size_t size){
     if (oldp==NULL){
         return smalloc(size);
     }
+    if ( size > HUNDRED_MIL || size==0){
+        return nullptr;
+    }
     MetaData* meta =(MetaData*)((char*)oldp-sizeof(MetaData));
     if (meta->getSize()>= size && size > 0){
         return oldp;       
@@ -171,23 +173,23 @@ void* srealloc(void* oldp, size_t size){
 }
 
 size_t _num_free_blocks(){
-    return stats->_num_free_blocks;
+    return our_stats->_num_free_blocks;
 }
 
 size_t _num_free_bytes(){
-    return stats->_num_free_bytes;
+    return our_stats->_num_free_bytes;
 }
 
 size_t _num_allocated_blocks(){
-    return stats->_num_allocated_blocks;
+    return our_stats->_num_allocated_blocks;
 }
 
 size_t _num_allocated_bytes(){
-    return stats->_num_allocated_bytes;
+    return our_stats->_num_allocated_bytes;
 }
 
 size_t _num_meta_data_bytes(){
-    return stats->_num_allocated_blocks * sizeof(MetaData);
+    return our_stats->_num_allocated_blocks * sizeof(MetaData);
 }
 
 size_t _size_meta_data(){

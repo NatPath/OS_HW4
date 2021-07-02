@@ -5,15 +5,14 @@
 
 
 
-/*
-// added from malloc_3.h
+#include <iostream>
+
 #define Println(expression) do {\
     std::cout<<expression<<std::endl;\
 }\
 while(0)\
-*/
 
-//void printStats();
+void printStats();
 class MetaData{
 
     public:
@@ -106,6 +105,7 @@ MetaData* meta_histogram[128];
 MetaData *heap_bottom=nullptr;
 MetaData *wilderness=nullptr;
 
+
 size_t _num_free_blocks(){
     return our_stats->_num_free_blocks;
 }
@@ -130,7 +130,6 @@ size_t _size_meta_data(){
     return sizeof(MetaData);
 }
 
-/*
 void printStats(){
     Println("Stats: ");
     Println("free blocks: " << _num_free_blocks());
@@ -138,7 +137,27 @@ void printStats(){
     Println("allocated blocks: "<< _num_allocated_blocks());
     Println("allocated bytes: "<< _num_free_bytes());
 }
+
+/*
+void* smalloc(size_t size);
+void* scalloc(size_t num, size_t size);
+void sfree(void* p);
+void* srealloc(void* oldp, size_t size);
+size_t _num_free_blocks();
+size_t _num_free_bytes();
+size_t _num_allocated_blocks();
+size_t _num_allocated_bytes();
+size_t _num_meta_data_bytes();
+size_t _size_meta_data();
 */
+
+size_t allign_address( size_t original_size){
+    size_t res_size = original_size;
+    if (original_size%8!=0){
+        res_size=original_size+ (8-original_size%8);
+    }
+    return res_size;
+}
 
 void stats_allocate_block(size_t num_bytes){
      our_stats->_num_allocated_blocks++;
@@ -226,7 +245,7 @@ void insert_to_meta_histogram(MetaData* new_entry){
     else{
         // entery_size >128KB
         //shouldn't get here
-      //  std::cout<<"if you got here you fucked up" << std::endl;
+        std::cout<<"if you got here you fucked up" << std::endl;
         return;//???
     }
 }
@@ -347,7 +366,6 @@ MetaData* split_block(MetaData* block_to_split,int size,int index){
     
 }
 
-/*
 void printMetaData(MetaData* meta){
     Println("---Printing Block---");
     Println("size: " <<meta->getSize());
@@ -356,8 +374,22 @@ void printMetaData(MetaData* meta){
     Println("next is :" << meta->getNext());
     Println("prev is :" << meta->getPrev());
 }
-*/
-
+void print_free_histogram(){
+    // Println("####print free histogram ####");
+    int count=0;
+    for (int i=0; i<HUNDERED_TWENTY_EIGHT;i++){
+        if (meta_histogram[i]==nullptr){
+            count++;
+        }        
+        else{
+            /*
+            Println("bin number : " << i << " is not empty");
+            printMetaData(meta_histogram[i]);
+            */
+        }
+    }
+    //Println("number of empty bins is :" << count);
+}
 /**
  * search inside a bin for a block to fit in or to split
  * actually split it
@@ -438,9 +470,9 @@ MetaData* expand_wilderness(size_t new_wilderness_size){
     return wilderness; 
 }
 void* mmap_wrap(size_t size){
-
     void* res= mmap(NULL,size+sizeof(MetaData),PROT_READ|PROT_WRITE,MAP_ANONYMOUS|MAP_PRIVATE,-1,0);
     if (res== (void*)(-1)){
+        perror("mmap failed");
         return nullptr;
     }
     return res;
@@ -513,6 +545,7 @@ MetaData* merge_neighbours(MetaData* meta,int index){
 
 }
 void* smalloc(size_t size){
+    size= allign_address(size);
     // start from the top
     if (size==0 || size > HUNDRED_MIL){
         return nullptr;
@@ -593,12 +626,12 @@ void* smalloc(size_t size){
 
 
 void* scalloc(size_t num, size_t size){
-    void* smalloc_res=smalloc(size * num);
+    size_t to_smalloc = allign_address(size*num);
+    void* smalloc_res=smalloc(to_smalloc);
     if(smalloc_res == NULL){
         return NULL;
     }
-
-    std::memset(smalloc_res,0,size*num);
+    std::memset(smalloc_res,0,to_smalloc);
     return smalloc_res;
 }
 void sfree_wo_merge(void* p){
@@ -606,6 +639,11 @@ void sfree_wo_merge(void* p){
         return;
     }
     MetaData* meta =(MetaData*)((char*)p-sizeof(MetaData));
+    // debug
+    if (meta->getDataBlock()!=p){
+        std::cout << "something is wrong with the pointer" << std::endl;
+
+    }
     //
     if (meta->isFree()){
         return;
@@ -619,6 +657,9 @@ void sfree_wo_merge(void* p){
     }
     else{
         int munnmap_res = munmap((void*)meta,sizeof(MetaData)+meta->getSize());
+        if (munnmap_res==-1){
+            std::cout<< "failed munmmap" <<std::endl;
+        }
         our_stats->_num_allocated_bytes-=old_size;
         our_stats->_num_allocated_blocks--;
     }
@@ -628,6 +669,12 @@ void sfree(void* p){
         return;
     }
     MetaData* meta =(MetaData*)((char*)p-sizeof(MetaData));
+    // debug
+    if (meta->getDataBlock()!=p){
+        std::cout << "something is wrong with the pointer" << std::endl;
+        std::cerr << "something is wrong with the pointer" << std::endl;
+
+    }
     //
     if (meta->isFree()){
         return;
@@ -641,6 +688,9 @@ void sfree(void* p){
     }
     else{
         int munnmap_res = munmap((void*)meta,sizeof(MetaData)+meta->getSize());
+        if (munnmap_res==-1){
+            std::cout<< "failed munmmap" <<std::endl;
+        }
         our_stats->_num_allocated_bytes-=old_size;
         our_stats->_num_allocated_blocks--;
     }
@@ -693,6 +743,7 @@ MetaData* copy_data_wrap(MetaData* dest, void* source, size_t size_of_data){
     void* dest_data = dest->getDataBlock();
     void* res_data =memmove(dest_data,source,size_of_data);
     if (res_data==nullptr){
+        std::cerr << "error memmoving" << std::endl;
         return nullptr;
     }
     else{
@@ -701,6 +752,7 @@ MetaData* copy_data_wrap(MetaData* dest, void* source, size_t size_of_data){
 }
 
 void* srealloc(void* oldp, size_t size){
+    size =allign_address(size);
     if (oldp==NULL){
         return smalloc(size);
     }
@@ -739,11 +791,9 @@ void* srealloc(void* oldp, size_t size){
                     */
 
                     res =expand_wilderness(size);
-                    /*
                     if (res!=wilderness){
                         Println("something went wrong with wilderness block");
                     }
-                    */
                     our_stats->_num_allocated_bytes+=size-old_size;
                     return res->getDataBlock();
                 }
@@ -785,6 +835,7 @@ void* srealloc(void* oldp, size_t size){
         res = copy_data_wrap(res,oldp,min_size);
         sfree(oldp);
         if (res== nullptr){
+            std::cerr << "copying failed" << std::endl;
             return nullptr;
         }
         return res+1;

@@ -1,5 +1,5 @@
 //ofir and einav wohoo
-#include "malloc_1.h"
+#include "malloc_1.cpp"
 #include <iostream>
 #include <unistd.h>
 

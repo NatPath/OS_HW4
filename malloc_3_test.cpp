@@ -1,7 +1,7 @@
 
 #include <assert.h>
 #include <iostream>
-#include "malloc_3.h"
+#include "malloc_3.cpp"
 #define META_SIZE sizeof(MetaData) // put your meta data name here.
 #define MAX_MALLOC_SIZE 100000000
 

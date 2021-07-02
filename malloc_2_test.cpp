@@ -1,6 +1,6 @@
 //ofir and einav wohoo
 #include <iostream>
-#include "malloc_2.h"
+#include "malloc_2.cpp"
 #include <cmath>
 #define NUM_OF_ARRAYS 11
 /*
