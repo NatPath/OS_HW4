@@ -435,8 +435,9 @@ MetaData* expand_wilderness(size_t new_wilderness_size){
 }
 void* mmap_wrap(size_t size){
 
-    void* res= mmap(NULL,size+sizeof(MetaData),PROT_EXEC|PROT_READ|PROT_WRITE,MAP_ANONYMOUS,-1,0);
+    void* res= mmap(NULL,size+sizeof(MetaData),PROT_READ|PROT_WRITE,MAP_ANONYMOUS|MAP_PRIVATE,-1,0);
     if (res== (void*)(-1)){
+        perror("mmap failed");
         return nullptr;
     }
     return res;
@@ -527,7 +528,7 @@ void* smalloc(size_t size){
             }
             heap_bottom=(MetaData*)sbrk_res;
             *heap_bottom = MetaData(size,0,(void*)((char*)sbrk_res+sizeof(MetaData)),NULL,0);
-            res->setNext(nullptr);
+            heap_bottom->setNext(nullptr);
             stats_allocate_block(size);
             wilderness= heap_bottom;
             return heap_bottom+1;
@@ -575,6 +576,10 @@ void* smalloc(size_t size){
     else{
         //block too big for a bin
         void* mmap_res = mmap_wrap(size);
+        if (mmap_res==nullptr){
+            return nullptr;
+        }
+
         res = (MetaData*)mmap_res;
         *res = MetaData(size,0,res+sizeof(MetaData),nullptr,1);
         stats_allocate_block(size);

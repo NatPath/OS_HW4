@@ -1,7 +1,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <cstring>
-#include "malloc_2.h"
+//#include "malloc_2.h"
 
 // UNCOMMENT THIS BEFORE SUBMITION - BECAUSE WE DONT SUBMIT malloc_2.h
  struct statistics{
@@ -17,7 +17,6 @@ typedef struct statistics* Stats;
 Stats stats = &stats_default;
 
 
-/*
 class MetaData{
     size_t  _size;
     bool _is_free;
@@ -48,8 +47,22 @@ class MetaData{
     void setPrev(MetaData* prev){
         _prev=prev;
     }
+    void* getDataBlock(){
+        return _data_block;
+    }
 };
-*/
+
+void stats_allocate_block(size_t num_bytes);
+void* smalloc(size_t size);
+void* scalloc(size_t num, size_t size);
+void sfree(void* p);
+void* srealloc(void* oldp, size_t size);
+size_t _num_free_blocks();
+size_t _num_free_bytes();
+size_t _num_allocated_blocks();
+size_t _num_allocated_bytes();
+size_t _num_meta_data_bytes();
+size_t _size_meta_data();
 
 MetaData *heap_bottom=nullptr;
 
